@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const patientId = formData.get("patientId");
+    const doctorId = formData.get("doctorId");
     const file = formData.get("file");
 
     if (typeof patientId !== "string" || !patientId) {
@@ -84,8 +85,9 @@ export async function POST(req: NextRequest) {
     });
 
     const disease = JSON.stringify(data.top3_labels);
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
     const topLabels = data.top3_labels as TopLabel[];
+    const topConfidence = topLabels[0]?.probability ?? null;
     const diseaseInfoResponses = await Promise.all(
       topLabels.map(async (element) => {
         try {
@@ -123,18 +125,29 @@ export async function POST(req: NextRequest) {
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: "Patient not found in database" },
+        { success: false, error: "Select a valid patient before uploading an Xray image." },
         { status: 404 }
       );
     }
 
+    const reportDoctorId =
+      typeof doctorId === "string" && doctorId
+        ? (
+            await prisma.doctor.findUnique({
+              where: { authUserId: doctorId },
+            })
+          )?.id
+        : undefined;
+
     const reportData = await prisma.report.create({
       data: {
         userId,
+        doctorId: reportDoctorId,
         imageUrl: uploadRes.secure_url, //need to upload to s3 or cloudinary and use dynamic url
         aiAnalysis: {
           create: {
             findings: result.text,
+            confidence: topConfidence,
           },
         },
       },

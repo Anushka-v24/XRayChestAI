@@ -54,7 +54,7 @@ Name: ${user?.name ?? "Unknown"}
 Email: ${user?.email ?? "Unknown"}
 Current patient summary: ${user?.disease ?? "No medical summary available yet."}
 
-Most recently uploaded radiology report:
+Most recently uploaded Xray image report:
 Date: ${latestReport?.date?.toISOString() ?? "No report uploaded yet"}
 Image URL: ${latestReport?.imageUrl ?? "N/A"}
 AI findings:
@@ -68,7 +68,7 @@ ${
     : "No doctor diagnosis notes for the latest report yet."
 }
 
-Previous uploaded reports:
+Previous uploaded Xray image reports:
 ${
   previousReports.length
     ? previousReports
@@ -88,7 +88,7 @@ ${
           role: "system",
           content: `You are a patient-facing AI medical assistant.
             Always be empathetic and factual. Answer questions using the patient context below.
-            Prioritize the most recently uploaded radiology report when the user asks about "this report", "latest report", detected diseases, findings, probabilities, diagnosis, or next steps.
+            Prioritize the most recently uploaded Xray image report when the user asks about "this report", "latest report", detected diseases, findings, probabilities, diagnosis, or next steps.
             Clearly say when something is not present in the uploaded report context.
             Do not invent measurements, diagnoses, or treatments that are not supported by the context. Encourage follow-up with a qualified clinician for clinical decisions.
 

@@ -16,7 +16,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import supabase from "@/app/lib/supabaseClient";
-import { ClipboardList, Search, Stethoscope } from "lucide-react";
+import { CheckCircle2, ClipboardList, MessageCircle, Search, Stethoscope, XCircle } from "lucide-react";
+import { ReportDownloadButton } from "@/app/components/chatbot/ReportDownloadButton";
 
 type Report = {
   id: string;
@@ -27,6 +28,7 @@ type Report = {
   severity?: string | null;
   reportText?: string | null;
   aiAnalysis?: { findings?: string | null } | null;
+  diagnosis?: Array<{ title?: string; notes?: string | null; createdAt?: string | Date }>;
   user?: { name?: string; email?: string; authUserId?: string };
 };
 
@@ -108,7 +110,7 @@ export default function DoctorDashboard() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <div className="glass-panel accent-rule rounded-lg p-5 pl-6">
+      <div className="glass-panel accent-rule rounded-[28px] p-5 pl-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-950 sm:text-3xl">
@@ -118,7 +120,7 @@ export default function DoctorDashboard() {
               Assigned reports, patient review, and scan activity
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-lg bg-slate-950 px-3 py-2 text-xs font-medium text-white shadow-lg shadow-slate-300">
+          <div className="flex items-center gap-2 rounded-[20px] bg-teal-500 px-3 py-2 text-xs font-medium text-white shadow-lg shadow-teal-200">
             <Stethoscope size={16} />
             Clinical review
           </div>
@@ -149,10 +151,18 @@ export default function DoctorDashboard() {
         </MotionCard>
         <MotionCard>
           <StatCard
-            title="Verified Reports"
-            value={reports.filter((report) => report.confirmed).length}
-            hint="Doctor confirmed"
+            title="Reviewed Patients"
+            value={stats.reviewedPatients ?? 0}
+            hint="Patients with doctor review"
             tone="amber"
+          />
+        </MotionCard>
+        <MotionCard>
+          <StatCard
+            title="Reviews Left"
+            value={stats.pendingReports ?? 0}
+            hint="Reports waiting for notes"
+            tone="cyan"
           />
         </MotionCard>
       </div>
@@ -200,7 +210,7 @@ export default function DoctorDashboard() {
           Assigned Patient Reports
         </h2>
         {reports.length ? (
-          <ReportGrid reports={reports} />
+          <ReportGrid reports={reports} onReviewed={loadDoctorDashboard} />
         ) : (
           <div className="text-slate-500 dark:text-gray-400">
             No assigned reports found for this doctor account.
@@ -217,12 +227,12 @@ export default function DoctorDashboard() {
           <input
             value={queryUser}
             onChange={(e) => setQueryUser(e.target.value)}
-            className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+            className="soft-input min-w-0 flex-1"
             placeholder="Enter patient auth user id..."
           />
           <button
             onClick={handleFetch}
-            className="rounded-lg bg-teal-600 px-4 py-2 text-white shadow-lg shadow-teal-200 transition hover:-translate-y-0.5 hover:bg-teal-700"
+            className="teal-button px-4 py-2"
           >
             Search
           </button>
@@ -230,7 +240,7 @@ export default function DoctorDashboard() {
 
         <div className="mt-4 space-y-4">
           {searchedReports.length > 0 ? (
-            <ReportGrid reports={searchedReports} />
+            <ReportGrid reports={searchedReports} onReviewed={handleFetch} />
           ) : (
             <div className="text-slate-500 dark:text-gray-400">
               No searched reports loaded yet.
@@ -242,43 +252,130 @@ export default function DoctorDashboard() {
   );
 }
 
-function ReportGrid({ reports }: { reports: Report[] }) {
+function ReportGrid({
+  reports,
+  onReviewed,
+}: {
+  reports: Report[];
+  onReviewed?: () => void | Promise<void>;
+}) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {reports.map((report) => (
-        <div
+        <ReviewableReportCard
           key={report.id}
-          className="rounded-lg border border-slate-100 bg-white/85 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="font-semibold">
-                {report.user?.name ?? "Patient report"}
-              </div>
-              <div className="text-xs text-slate-500">
-                {new Date(report.date).toLocaleString()}
-              </div>
-            </div>
-            <span
-              className={`rounded-full px-2 py-1 text-xs text-white ${
-                report.confirmed ? "bg-green-600" : "bg-yellow-600"
-              }`}
-            >
-              {report.confirmed ? "Verified" : "Pending"}
-            </span>
+          report={report}
+          onReviewed={onReviewed}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ReviewableReportCard({
+  report,
+  onReviewed,
+}: {
+  report: Report;
+  onReviewed?: () => void | Promise<void>;
+}) {
+  const [notes, setNotes] = useState(report.diagnosis?.[0]?.notes ?? "");
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function saveReview() {
+    if (!notes.trim()) {
+      setMessage("Add diagnosis notes before sending the review.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+
+    try {
+      const res = await fetch(`/api/reports/${report.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Doctor Review",
+          notes,
+          confirmed: true,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send doctor review");
+      }
+
+      setMessage("Doctor review sent to patient.");
+      await onReviewed?.();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to send doctor review");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-[26px] border border-white/90 bg-white/85 p-4 shadow-lg shadow-cyan-900/8 transition hover:-translate-y-1 hover:shadow-xl">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold">
+            {report.user?.name ?? "Patient report"}
           </div>
-          <img
-            src={report.imageUrl}
-            alt="Radiology report"
-            className="mt-3 max-h-56 w-full rounded-lg border object-contain shadow-sm"
-          />
-          <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-            {report.aiAnalysis?.findings ||
-              report.reportText ||
-              "No AI analysis saved for this report."}
+          <div className="text-xs text-slate-500">
+            {new Date(report.date).toLocaleString()}
           </div>
         </div>
-      ))}
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-bold text-white ${
+            report.confirmed ? "bg-green-600" : "bg-yellow-600"
+          }`}
+        >
+          {report.confirmed ? "Reviewed" : "Pending"}
+        </span>
+      </div>
+      <img
+        src={report.imageUrl}
+        alt="Radiology report"
+        className="mt-3 max-h-56 w-full rounded-[22px] border object-contain shadow-sm"
+      />
+      <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+        {report.aiAnalysis?.findings ||
+          report.reportText ||
+          "No AI analysis saved for this report."}
+      </div>
+      <textarea
+        value={notes}
+        onChange={(event) => setNotes(event.target.value)}
+        className="soft-input mt-4 min-h-24 w-full resize-none"
+        placeholder="Add diagnosis notes, prescriptions, or follow-up instructions..."
+      />
+      {message && <p className="mt-2 text-xs font-semibold text-slate-600">{message}</p>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          onClick={saveReview}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-[18px] bg-teal-500 px-3 py-2 text-xs font-bold text-white shadow-lg shadow-teal-200 transition hover:-translate-y-0.5 disabled:opacity-60"
+        >
+          <CheckCircle2 size={15} />
+          {saving ? "Sending..." : "Send Review"}
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-[18px] bg-white px-3 py-2 text-xs font-bold text-red-600 shadow-md transition hover:-translate-y-0.5">
+          <XCircle size={15} />
+          Reject
+        </button>
+        <button className="inline-flex items-center gap-2 rounded-[18px] bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-md transition hover:-translate-y-0.5">
+          <MessageCircle size={15} />
+          Chat
+        </button>
+        <ReportDownloadButton
+          report={report}
+          patientName={report.user?.name ?? "Patient"}
+          className="px-3 py-2 text-xs"
+        />
+      </div>
     </div>
   );
 }

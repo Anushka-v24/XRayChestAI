@@ -14,7 +14,9 @@ export async function GET(req: NextRequest) {
         reports: {
           include: {
             aiAnalysis: true,
-            diagnosis: true,
+            diagnosis: {
+              orderBy: { createdAt: "desc" },
+            },
             doctor: true,
           },
         },

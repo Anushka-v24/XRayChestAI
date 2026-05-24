@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
             doctor: true,
             user: true,
             aiAnalysis: true,
-            diagnosis: true,
+            diagnosis: {
+              orderBy: { createdAt: "desc" },
+            },
           },
         },
       },
@@ -49,6 +51,11 @@ export async function GET(req: NextRequest) {
     const totalReports = reports.length;
     const totalPatients =
       new Set(reports.map((r) => r.userId)).size ?? 0;
+    const reviewedReports = reports.filter((report) => report.confirmed).length;
+    const reviewedPatients = new Set(
+      reports.filter((report) => report.confirmed).map((report) => report.userId)
+    ).size;
+    const pendingReports = reports.filter((report) => !report.confirmed).length;
     const accuracy = "0.75";
 
  const trend = reports.reduce((acc: Record<string, number>, report) => {
@@ -77,7 +84,16 @@ const scanDist = Object.entries(severityCounts).map(([type, count]) => ({
     return NextResponse.json({
       success: true,
       doctor,
-      stats: { totalReports, totalPatients, accuracy, trend:trendData, scanDist },
+      stats: {
+        totalReports,
+        totalPatients,
+        reviewedReports,
+        reviewedPatients,
+        pendingReports,
+        accuracy,
+        trend: trendData,
+        scanDist,
+      },
       reports,
     });
    

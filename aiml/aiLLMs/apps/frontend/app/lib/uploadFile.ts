@@ -1,7 +1,14 @@
-export async function handleUpload(file: File, patientId: string) {
+export async function handleUpload(
+  file: File,
+  patientId: string,
+  doctorId?: string
+) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("patientId", patientId);
+  if (doctorId) {
+    formData.append("doctorId", doctorId);
+  }
 
   const res = await fetch("/api/agentA", {
     method: "POST",

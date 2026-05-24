@@ -7,31 +7,39 @@ export async function GET(req: NextRequest) {
     if (!doctorAuthId) {
       return NextResponse.json({ success: false, error: "Missing token" });
     }
-   const doctor = await prisma.doctor.findUnique({
-  where: { authUserId: doctorAuthId },
-  select: { id: true },
-});
+    const doctor = await prisma.doctor.findUnique({
+      where: { authUserId: doctorAuthId },
+      select: { id: true },
+    });
+    if (!doctor) {
+      return NextResponse.json(
+        { success: false, error: "Doctor not found" },
+        { status: 404 }
+      );
+    }
 //req.nextUrl
 // This gives you a URL object of the current request.
 // .searchParams
 // This gives you the URL's query parameters.
 // .get("token")
 // This extracts the value associated with the key "token".
-const users = await prisma.user.findMany({
-  where: {
-    reports: {
-      some: {
-        doctorId: doctor?.id,
+    const users = await prisma.user.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        _count: {
+          select: {
+            reports: {
+              where: {
+                doctorId: doctor.id,
+              },
+            },
+          },
+        },
       },
-    },
-  },
-  distinct: ["id"],
-});
-    ;
-console.log({users})
-// “Give me all users where at least one report has doctorId = this doctor’s ID”
-// some means → at least one match
-// distinct: ["id"] ensures no duplicates even if a user has multiple reports
+    });
+    console.log({ users });
+// Give doctors the full patient list so they can upload a first report.
+// _count.reports still exposes whether this doctor already has reports for each patient.
 
     //disease string has all context summed up from all three bots
     //reports can be showed up on left side as toggle

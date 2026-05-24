@@ -22,6 +22,7 @@ type Patient = {
 type PatientsApiResponse = {
   success: boolean;
   users: Patient[];
+  error?: string;
 };
 const fetcher = (url: string) => axios.get(url).then((res) => res.data);
 
@@ -32,24 +33,32 @@ export function PatientSelector({
   onSelect: (p: Patient | undefined) => void;
   id?: string;
 }) {
-  const doctorId = id ?? "bf3814e2-9318-4eff-b4af-444db46b7167";
+  const doctorId = id;
   const { data, isLoading } = useSWR<PatientsApiResponse>(
-    `/api/doctorPatient?token=${doctorId}`,
+    doctorId ? `/api/doctorPatient?token=${doctorId}` : null,
     fetcher
   );
-  const patients = data?.users;
+  const patients = data?.users ?? [];
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
   return (
     <div>
-      {isLoading ? (
+      {!doctorId ? (
+        <span className="text-xs text-slate-500">Loading doctor...</span>
+      ) : isLoading ? (
         "Loading..."
+      ) : data?.success === false ? (
+        <span className="text-xs text-red-600">
+          {data.error || "Unable to load patients"}
+        </span>
+      ) : patients.length === 0 ? (
+        <span className="text-xs text-slate-500">No patients found</span>
       ) : (
         <Select
           onValueChange={(patientId) =>
-            onSelect(patients?.find((p) => p.id === patientId))
+            onSelect(patients.find((p) => p.id === patientId))
           }
         >
           <SelectTrigger className="w-[200px]">

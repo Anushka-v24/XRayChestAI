@@ -1,81 +1,68 @@
 "use client";
+
+import Link from "next/link";
 import supabase from "@/app/lib/supabaseClient";
 import { useState } from "react";
-import Link from "next/link";
-import { LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
+import { ShieldCheck, UserPlus } from "lucide-react";
 
-export default function LoginPage() {
+export default function SignupPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("USER");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function syncUser(authUserId: string, userEmail: string, name: string, selectedRole: string) {
-    if (selectedRole === "ADMIN") return;
-
-    const response = await fetch("/api/auth/sync-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        authUserId,
-        email: userEmail,
-        name,
-        role: selectedRole,
-      }),
-    });
-
-    const result = await response.json().catch(() => null);
-
-    if (!response.ok || !result?.success) {
-      throw new Error(result?.error || "Failed to sync user profile");
-    }
-  }
-
-  async function handleLogin() {
+  async function handleSignup() {
     setLoading(true);
     setMessage("");
     const selectedRole = role.trim().toUpperCase() || "USER";
+    const displayName = name.trim();
 
-    let data;
-    let error;
-
-    try {
-      const result = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      data = result.data;
-      error = result.error;
-    } catch (err) {
-      console.error("Login request failed:", err);
-      setMessage("Unable to reach Supabase Auth. Check your internet connection or Supabase project URL.");
+    if (!displayName) {
+      setMessage("Please enter your name.");
       setLoading(false);
       return;
     }
-    if (error) {
-      setMessage(error.message);
-      setLoading(false);
-    } else if (data.user) {
-      try {
-        const savedRole = String(data.user.user_metadata?.role || selectedRole).toUpperCase();
-        await syncUser(
-          data.user.id,
-          data.user.email || email.trim(),
-          data.user.user_metadata?.name || "User",
-          savedRole
-        );
-        window.location.href =
-          savedRole === "ADMIN"
-            ? "/dashboard"
-            : savedRole === "DOCTOR"
-              ? "/doctor-dashboard"
-              : "/patient-dashboard";
-      } catch (err) {
-        console.error("Failed to sync user:", err);
-        setMessage(err instanceof Error ? err.message : "Failed to sync user profile");
-        setLoading(false);
+
+    try {
+      const response = await fetch("/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: displayName,
+          role: selectedRole,
+        }),
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || "Signup failed");
       }
+
+      const loginResult = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (loginResult.error) {
+        setMessage("Account created. Please sign in.");
+        setLoading(false);
+        return;
+      }
+
+      window.location.href =
+        selectedRole === "ADMIN"
+          ? "/dashboard"
+          : selectedRole === "DOCTOR"
+            ? "/doctor-dashboard"
+            : "/patient-dashboard";
+    } catch (err) {
+      console.error("Signup request failed:", err);
+      setMessage(err instanceof Error ? err.message : "Signup failed");
+      setLoading(false);
     }
   }
 
@@ -88,26 +75,34 @@ export default function LoginPage() {
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-[20px] bg-white/75 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-teal-700 shadow-sm">
               <ShieldCheck size={15} />
-              Secure access
+              Role-based access
             </p>
             <h1 className="max-w-xl text-4xl font-black leading-tight text-slate-950 sm:text-6xl">
-              Welcome back to your AI radiology workspace
+              Create your medical AI account
             </h1>
             <p className="mt-4 max-w-md text-lg font-medium leading-7 text-slate-700">
-              Sign in to upload X-rays, review AI reports, chat with the assistant, and consult your assigned doctor.
+              Choose Patient, Doctor, or Admin access and enter the secure workspace designed for your role.
             </p>
           </div>
 
           <div className="rounded-[30px] border border-white/90 bg-white/78 p-5 shadow-2xl shadow-cyan-900/15 backdrop-blur-xl sm:p-7">
             <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-[22px] bg-gradient-to-br from-teal-300 to-cyan-200 text-white shadow-lg shadow-teal-200">
-              <LockKeyhole size={25} />
+              <UserPlus size={25} />
             </div>
-            <h2 className="text-2xl font-black text-slate-950">Login</h2>
+            <h2 className="text-2xl font-black text-slate-950">Signup</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Secure session handling powered by Supabase authentication.
+              Accounts use secure Supabase sessions with app-level role routing.
             </p>
 
             <div className="mt-5 space-y-4">
+              <input
+                type="text"
+                placeholder="Full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="soft-input w-full"
+                disabled={loading}
+              />
               <input
                 type="email"
                 placeholder="Email"
@@ -116,7 +111,6 @@ export default function LoginPage() {
                 className="soft-input w-full"
                 disabled={loading}
               />
-
               <input
                 type="password"
                 placeholder="Password"
@@ -125,7 +119,6 @@ export default function LoginPage() {
                 className="soft-input w-full"
                 disabled={loading}
               />
-
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
@@ -137,29 +130,23 @@ export default function LoginPage() {
                 <option value="ADMIN">Admin</option>
               </select>
 
-          {message && (
+              {message && (
                 <p className="rounded-[20px] bg-red-50 p-3 text-center text-sm text-red-600">
                   {message}
                 </p>
-          )}
+              )}
 
-              <button
-                onClick={handleLogin}
-                className="teal-button w-full py-3"
-                disabled={loading}
-              >
-                <LogIn size={17} />
-                {loading ? "Logging in..." : "Login"}
+              <button onClick={handleSignup} className="teal-button w-full py-3" disabled={loading}>
+                <UserPlus size={17} />
+                {loading ? "Creating account..." : "Create account"}
               </button>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-semibold">
-                <Link href="/auth/forgot-password" className="text-teal-700 hover:text-teal-900">
-                  Forgot password?
+              <p className="text-center text-sm font-semibold text-slate-600">
+                Already have an account?{" "}
+                <Link href="/auth/login" className="text-teal-700 hover:text-teal-900">
+                  Login
                 </Link>
-                <Link href="/auth/signup" className="text-slate-600 hover:text-teal-700">
-                  Create an account
-                </Link>
-              </div>
+              </p>
             </div>
           </div>
         </div>

@@ -7,6 +7,20 @@ interface Props {
 }
 
 export default function MedicalResult({ content }: Props) {
+  function renderBoldText(line: string) {
+    return line.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={`${part}-${index}`} className="font-bold text-gray-900">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+
+      return <span key={`${part}-${index}`}>{part}</span>;
+    });
+  }
+
   return (
     <div className="max-w-4xl mx-auto mt-6 bg-white p-6 rounded-xl shadow-md border border-gray-200">
 
@@ -21,7 +35,7 @@ export default function MedicalResult({ content }: Props) {
           if (line.startsWith("**") && line.endsWith("**")) {
             return (
               <h3 key={idx} className="text-xl font-bold text-gray-900 mt-6 mb-2">
-                {line.replace(/\*/g, "")}
+              {line.replace(/\*/g, "")}
               </h3>
             );
           }
@@ -30,7 +44,7 @@ export default function MedicalResult({ content }: Props) {
           if (line.trim().startsWith("* ")) {
             return (
               <li key={idx} className="ml-6 text-gray-700 leading-relaxed">
-                {line.replace("* ", "")}
+              {renderBoldText(line.replace("* ", ""))}
               </li>
             );
           }
@@ -38,7 +52,7 @@ export default function MedicalResult({ content }: Props) {
           // Default paragraph
           return (
             <p key={idx} className="text-gray-700 leading-relaxed mb-3">
-              {line}
+              {renderBoldText(line)}
             </p>
           );
         })}

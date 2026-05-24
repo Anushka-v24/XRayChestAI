@@ -33,8 +33,8 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // Allow unauthenticated access to auth routes
-  if (req.nextUrl.pathname.startsWith('/auth/')) {
+  // Allow unauthenticated access to the public homepage and auth routes
+  if (req.nextUrl.pathname === '/' || req.nextUrl.pathname.startsWith('/auth/')) {
     return response
   }
 

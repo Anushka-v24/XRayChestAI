@@ -7,12 +7,13 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import supabase from "../lib/supabaseClient";
 import axios from "axios";
-import { Activity, FileText, Stethoscope } from "lucide-react";
+import { Bot, FileText, Stethoscope, X } from "lucide-react";
 
 export default function Page() {
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [role, setRole] = useState("USER");
   const [id, setId] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   async function loadPatient(patientAuthId: string) {
     const result = await axios.get(`/api/patients?token=${patientAuthId}`);
@@ -29,9 +30,14 @@ export default function Page() {
         session.user.user_metadata?.name ||
         session.user.email?.split("@")[0] ||
         session.user.email;
-      setRole(session.user.user_metadata.role);
+      const userRole = String(session.user.user_metadata.role || "USER").toUpperCase();
+      setRole(userRole);
       setId(session.user.id);
-      await loadPatient(session.user.id);
+      if (userRole !== "DOCTOR") {
+        await loadPatient(session.user.id);
+      } else {
+        setSelectedPatient(null);
+      }
     }
   }
 
@@ -57,7 +63,7 @@ export default function Page() {
 
   //if logged in user is doctor, show doctor dashboard + add diagnosis tab and allow patient selector else remove header,'add diagnosis' field  and just show option to add new report and chatbot in right
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-4">
+    <div className="relative flex min-h-[calc(100vh-7rem)] flex-col gap-4">
       <header
         className={`glass-panel accent-rule flex flex-col gap-5 rounded-lg p-5 pl-6 ring-1 ring-white/70 sm:flex-row sm:items-center sm:justify-between ${
           role == "DOCTOR" ? "" : ""
@@ -72,7 +78,7 @@ export default function Page() {
               Medical Assistant
             </h1>
             <p className="text-sm text-slate-500">
-              Upload reports and discuss recent findings
+              Upload Xray images and discuss recent findings
             </p>
           </div>
         </div>
@@ -81,51 +87,97 @@ export default function Page() {
             <FileText size={15} />
             Latest report context enabled
           </div>
-          <PatientSelector onSelect={handleSelectPatient} id={id as string} />
+          {role === "DOCTOR" && (
+            <PatientSelector onSelect={handleSelectPatient} id={id ?? undefined} />
+          )}
         </div>
       </header>
-      <main className="grid flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)]">
-        {/* Left Panel - Patient Details */}
+      <main className="flex flex-1 flex-col gap-4">
         <motion.div
           layout
-          className="glass-panel min-h-[420px] overflow-y-auto rounded-lg"
+          className="glass-panel min-h-[calc(100vh-15rem)] overflow-y-auto rounded-[30px]"
         >
           {selectedPatient ? (
             <PatientCard
               patient={selectedPatient}
               role={role}
+              doctorId={id}
               onReportUploaded={refreshSelectedPatient}
             />
-          ) : (
+          ) : role !== "DOCTOR" ? (
             <PatientCard
               patient={selectedPatient}
               role={role}
+              doctorId={id}
               onReportUploaded={refreshSelectedPatient}
             />
+          ) : (
+            <div className="flex min-h-[520px] items-center justify-center p-6 text-center">
+              <div className="max-w-md">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[22px] bg-cyan-100 text-teal-700">
+                  <Stethoscope size={26} />
+                </div>
+                <h2 className="text-2xl font-black text-slate-950">Select a patient first</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600">
+                  Choose a patient from the selector above before uploading an Xray image or reviewing report context.
+                </p>
+              </div>
+            </div>
           )}
         </motion.div>
 
-        {/* Right Panel - Chatbot */}
-        <motion.div
-          layout
-          className="glass-panel flex min-h-[520px] flex-col rounded-lg p-4"
-        >
-       {selectedPatient ? (
-  <>
-    <p className="mb-3 flex items-center gap-2 text-sm text-slate-500">
-      <Activity size={16} className="text-teal-600" />
-      Chatting with <b className="text-slate-800">{selectedPatient.name}</b>
-    </p>
-    <MedicalChat key={selectedPatient.authUserId}  id={selectedPatient.authUserId || id} />
-  </>
-) : id ? (
-  // If user is patient, auto-load their own chat
-  <MedicalChat key={id}  id={id} />
-) : (
-  <div>Loading chat...</div>
-)}
-        </motion.div>
       </main>
+
+      <motion.button
+        type="button"
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-6 right-6 z-40 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-teal-300 to-cyan-500 text-white shadow-2xl shadow-teal-300/60 ring-4 ring-white/80 transition hover:-translate-y-1"
+        animate={{ y: [0, -8, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        aria-label="Open AI chatbot"
+      >
+        <Bot size={30} />
+      </motion.button>
+
+      {chatOpen && (
+        <motion.aside
+          initial={{ opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 24, scale: 0.96 }}
+          className="fixed bottom-6 right-4 top-[2cm] z-50 flex w-[calc(100vw-2rem)] max-w-[460px] flex-col rounded-[30px] border border-white/90 bg-white/82 p-4 shadow-2xl shadow-cyan-900/20 backdrop-blur-2xl sm:right-6"
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-100 text-teal-600">
+                <Bot size={23} />
+              </div>
+              <div>
+                <p className="text-sm font-black text-slate-950">AI Medical Chatbot</p>
+                <p className="text-xs text-slate-500">
+                  {selectedPatient?.name ? `Chatting with ${selectedPatient.name}` : "Latest report context"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setChatOpen(false)}
+              className="rounded-full bg-white p-2 text-slate-600 shadow-md transition hover:-translate-y-0.5 hover:text-teal-700"
+              aria-label="Close chatbot"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          {selectedPatient ? (
+            <MedicalChat key={selectedPatient.authUserId} id={selectedPatient.authUserId || id} />
+          ) : id ? (
+            <MedicalChat key={id} id={id} />
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+              Loading chat...
+            </div>
+          )}
+        </motion.aside>
+      )}
     </div>
   );
 }

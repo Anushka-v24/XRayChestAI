@@ -3,12 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { MdDashboard, MdChat, MdHistory, MdLocalHospital, MdPerson } from "react-icons/md";
+import {
+  MdAssignment,
+  MdChat,
+  MdDashboard,
+  MdDownload,
+  MdHistory,
+  MdLocalHospital,
+  MdLogout,
+  MdMedicalServices,
+  MdPerson,
+  MdSettings,
+  MdUploadFile,
+} from "react-icons/md";
 
 const links = [
-  { href: "/patient-dashboard", label: "Patient Dashboard", icon: <MdPerson size={20} /> },
-  { href: "/doctor-dashboard", label: "Doctor Dashboard", icon: <MdDashboard size={20} /> },
-  { href: "/medical-assistant", label: "Medical Assistant", icon: <MdChat size={20} /> },
+  { href: "/patient-dashboard", label: "Home", icon: <MdDashboard size={20} /> },
+  { href: "/medical-assistant", label: "Upload X-Ray", icon: <MdUploadFile size={20} /> },
+  { href: "/patient-dashboard?history=open", label: "AI Reports", icon: <MdAssignment size={20} /> },
+  { href: "/doctor-dashboard", label: "Assigned Doctor", icon: <MdMedicalServices size={20} /> },
+  { href: "/chatbot", label: "AI Chatbot", icon: <MdChat size={20} /> },
+  { href: "/patient-dashboard?history=open", label: "Medical History", icon: <MdHistory size={20} /> },
+  { href: "/patient-dashboard?downloads=open", label: "Downloads", icon: <MdDownload size={20} /> },
+  { href: "/profile", label: "Profile", icon: <MdPerson size={20} /> },
+  { href: "/profile?settings=open", label: "Settings", icon: <MdSettings size={20} /> },
 ];
 
 export default function Sidebar() {
@@ -39,11 +57,11 @@ export default function Sidebar() {
       <nav className="flex gap-2 overflow-x-auto lg:items-center lg:overflow-visible">
         {links.map((l) => (
           <Link
-            key={l.href}
+            key={`${l.label}-${l.href}`}
             href={l.href}
-            className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition duration-200
+            className={`flex shrink-0 items-center gap-2 rounded-[20px] px-3 py-2 text-sm font-semibold transition duration-200
               ${
-                pathname === l.href
+                pathname === l.href.split("?")[0]
                   ? "bg-teal-500 text-white shadow-lg shadow-teal-200"
                   : "text-slate-700 hover:bg-white hover:text-teal-700 hover:shadow-md"
               }
@@ -55,7 +73,7 @@ export default function Sidebar() {
         ))}
         <Link
           href={historyHref}
-          className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition duration-200
+          className={`flex shrink-0 items-center gap-2 rounded-[20px] px-3 py-2 text-sm font-semibold transition duration-200
             ${
               historyOpen
                 ? "bg-teal-500 text-white shadow-lg shadow-teal-200"
@@ -65,6 +83,13 @@ export default function Sidebar() {
         >
           <MdHistory size={20} />
           Report History
+        </Link>
+        <Link
+          href="/auth/login"
+          className="flex shrink-0 items-center gap-2 rounded-[20px] px-3 py-2 text-sm font-semibold text-slate-700 transition duration-200 hover:bg-white hover:text-red-600 hover:shadow-md"
+        >
+          <MdLogout size={20} />
+          Logout
         </Link>
       </nav>
       </div>

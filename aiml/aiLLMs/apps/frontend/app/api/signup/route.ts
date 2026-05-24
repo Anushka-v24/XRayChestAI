@@ -59,7 +59,18 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ username: user.name, success: true });
     }
+    if (role === "ADMIN") {
+      const admin = await prisma.admin.create({
+        data: { email, password },
+      });
+      return NextResponse.json({ username: admin.email, success: true });
+    }
     //depending upon role, save user inside prima database
+    await supabase.auth.admin.deleteUser(authUserId);
+    return NextResponse.json(
+      { error: "Unsupported role" },
+      { status: 400 }
+    );
   } catch (err) {
     //rollback supabase user creation
     await supabase.auth.admin.deleteUser(authUserId);
