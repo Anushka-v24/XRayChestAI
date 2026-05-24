@@ -21,6 +21,24 @@ function displayName(name?: string | null) {
   return name && !name.includes("@") ? name : "Patient";
 }
 
+const CONFIDENT_PERCENT_THRESHOLD = 30;
+
+function formatPercent(value: number) {
+  if (value > 0 && value < 0.01) return "<0.01%";
+  if (value > 0 && value < 1) return `${value.toFixed(2)}%`;
+  if (value < 10) return `${value.toFixed(1)}%`;
+  return `${Math.round(value)}%`;
+}
+
+function formatConfidence(value?: number | null) {
+  if (typeof value !== "number") return "Pending";
+  const percent = value <= 1 ? value * 100 : value;
+  if (percent < CONFIDENT_PERCENT_THRESHOLD) {
+    return `No confident disease detected (${formatPercent(percent)})`;
+  }
+  return formatPercent(percent);
+}
+
 export function PatientCard({
   patient,
   role = "DOCTOR",
@@ -96,10 +114,15 @@ export function PatientCard({
             <div className="rounded-[26px] bg-white p-4 text-sm leading-7 text-slate-700 shadow-sm whitespace-pre-wrap sm:p-5">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-base font-black text-slate-950">Detailed Medical Analysis</p>
-                <ReportDownloadButton
-                  report={latestReport}
-                  patientName={displayName(patientData?.name)}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800">
+                    Confidence: {formatConfidence(latestReport.aiAnalysis?.confidence)}
+                  </span>
+                  <ReportDownloadButton
+                    report={latestReport}
+                    patientName={displayName(patientData?.name)}
+                  />
+                </div>
               </div>
               <p>
                 <RichMedicalText

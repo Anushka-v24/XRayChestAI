@@ -2,6 +2,17 @@ import { NextResponse } from "next/server";
 import prisma from "@/db/prisma/prismaCl";
 import { createSupabaseServerClient } from "@/app/lib/supabaseServer";
 
+type PatientNotificationReport = {
+  id: string;
+  doctor?: { name?: string | null } | null;
+  diagnosis: Array<{
+    id: string;
+    title: string;
+    notes?: string | null;
+    createdAt: Date;
+  }>;
+};
+
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const {
@@ -33,7 +44,9 @@ export async function GET() {
       return NextResponse.json({ success: true, notifications: [] });
     }
 
-    const notifications = patient.reports.flatMap((report) =>
+    const reports = (patient as unknown as { reports: PatientNotificationReport[] }).reports;
+
+    const notifications = reports.flatMap((report) =>
       report.diagnosis.map((diagnosis) => ({
         id: diagnosis.id,
         reportId: report.id,

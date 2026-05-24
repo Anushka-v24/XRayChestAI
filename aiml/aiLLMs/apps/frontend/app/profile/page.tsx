@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import supabase from "@/app/lib/supabaseClient";
 
 const profileCards = [
   { title: "Medical History", text: "Track disease notes, symptoms, and prior clinical context.", icon: HeartPulse },
@@ -20,6 +22,7 @@ const profileCards = [
 ];
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [disease, setDisease] = useState("");
@@ -81,6 +84,18 @@ export default function ProfilePage() {
       });
 
       if (res.ok) {
+        const { error: authUpdateError } = await supabase.auth.updateUser({
+          data: { name },
+        });
+        if (authUpdateError) {
+          console.warn("Profile saved, but auth metadata sync failed:", authUpdateError);
+        }
+        window.dispatchEvent(
+          new CustomEvent("profile-updated", {
+            detail: { name },
+          })
+        );
+        router.refresh();
         setMessage("Profile updated successfully!");
       } else {
         const error = await res.json();

@@ -22,7 +22,9 @@ export default function StatCard({
         <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-300">
           {title}
         </div>
-        <div className="text-3xl font-semibold text-slate-950">{value}</div>
+        <div className="break-words text-2xl font-semibold leading-tight text-slate-950 sm:text-3xl">
+          {value}
+        </div>
         {hint && <div className="text-xs text-slate-500">{hint}</div>}
       </div>
       <div className={`mt-1 h-10 w-2 rounded-full ${toneClass}`} />

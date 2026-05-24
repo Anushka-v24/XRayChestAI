@@ -5,6 +5,7 @@ type DoctorReport = {
   id: string;
   userId: string;
   createdAt: Date;
+  confirmed: boolean;
   severity: string | null;
 };
 

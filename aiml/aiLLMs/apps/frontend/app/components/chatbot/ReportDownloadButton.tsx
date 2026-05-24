@@ -28,12 +28,22 @@ function formatDate(value?: string | Date) {
   return new Date(value).toLocaleString();
 }
 
+const CONFIDENT_PERCENT_THRESHOLD = 30;
+
+function formatPercent(value: number) {
+  if (value > 0 && value < 0.01) return "<0.01%";
+  if (value > 0 && value < 1) return `${value.toFixed(2)}%`;
+  if (value < 10) return `${value.toFixed(1)}%`;
+  return `${Math.round(value)}%`;
+}
+
 function formatConfidence(value?: number | null) {
   if (typeof value !== "number") return "Pending";
   const percent = value <= 1 ? value * 100 : value;
-  if (percent > 0 && percent < 1) return "<1%";
-  if (percent < 10) return `${percent.toFixed(1)}%`;
-  return `${Math.round(percent)}%`;
+  if (percent < CONFIDENT_PERCENT_THRESHOLD) {
+    return `No confident disease detected (${formatPercent(percent)})`;
+  }
+  return formatPercent(percent);
 }
 
 function medicalHtml(value: string) {

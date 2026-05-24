@@ -46,7 +46,7 @@ export default function MedicalChat({ id = "" }: { id?: string }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* CHAT WINDOW */}
       {aiMessages.length === 0 ? (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-teal-200 bg-white/55 p-6 text-center">

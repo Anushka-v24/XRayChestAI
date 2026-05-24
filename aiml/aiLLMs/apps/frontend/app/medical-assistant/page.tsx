@@ -144,7 +144,7 @@ export default function Page() {
           initial={{ opacity: 0, y: 24, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 24, scale: 0.96 }}
-          className="fixed bottom-6 right-4 top-[2cm] z-50 flex w-[calc(100vw-2rem)] max-w-[460px] flex-col rounded-[30px] border border-white/90 bg-white/82 p-4 shadow-2xl shadow-cyan-900/20 backdrop-blur-2xl sm:right-6"
+          className="fixed bottom-6 right-4 z-50 flex h-[50vh] w-[calc(100vw-2rem)] flex-col rounded-[30px] border border-white/90 bg-white/82 p-4 shadow-2xl shadow-cyan-900/20 backdrop-blur-2xl sm:right-6 sm:w-[50vw] sm:min-w-[460px] sm:max-w-[720px]"
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">

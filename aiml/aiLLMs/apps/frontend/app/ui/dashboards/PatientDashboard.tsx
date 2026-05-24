@@ -39,16 +39,33 @@ type Patient = {
   reports?: Report[];
 };
 
+type Doctor = {
+  id: string;
+  name: string;
+  email: string;
+  specialization?: { type?: string | null } | null;
+};
+
 function displayName(name?: string | null) {
   return name && !name.includes("@") ? name : "User";
+}
+
+const CONFIDENT_PERCENT_THRESHOLD = 30;
+
+function formatPercent(value: number) {
+  if (value > 0 && value < 0.01) return "<0.01%";
+  if (value > 0 && value < 1) return `${value.toFixed(2)}%`;
+  if (value < 10) return `${value.toFixed(1)}%`;
+  return `${Math.round(value)}%`;
 }
 
 function formatConfidence(value?: number | null) {
   if (typeof value !== "number") return "Pending";
   const percent = value <= 1 ? value * 100 : value;
-  if (percent > 0 && percent < 1) return "<1%";
-  if (percent < 10) return `${percent.toFixed(1)}%`;
-  return `${Math.round(percent)}%`;
+  if (percent < CONFIDENT_PERCENT_THRESHOLD) {
+    return `No confident disease detected (${formatPercent(percent)})`;
+  }
+  return formatPercent(percent);
 }
 
 export default function PatientDashboard() {
@@ -56,6 +73,10 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [sendMessage, setSendMessage] = useState("");
+  const [sendingReport, setSendingReport] = useState(false);
 
   useEffect(() => {
     setShowHistory(new URLSearchParams(window.location.search).get("history") === "open");
@@ -78,6 +99,12 @@ export default function PatientDashboard() {
         }
 
         setPatient(result.data.result);
+        const doctorResult = await axios.get("/api/doctors", {
+          validateStatus: () => true,
+        });
+        if (doctorResult.data?.success) {
+          setDoctors(doctorResult.data.doctors ?? []);
+        }
       } catch (err) {
         console.error("Failed to load patient dashboard:", err);
         setError("Unable to load your dashboard right now.");
@@ -106,6 +133,49 @@ export default function PatientDashboard() {
     { title: "Chat with AI", text: "Ask about symptoms and precautions.", href: "/chatbot", icon: Bot },
     { title: "Downloads", text: "Save PDF medical reports.", href: "?downloads=open", icon: Download },
   ];
+
+  async function sendLatestReportToDoctor() {
+    if (!latestReport?.id) {
+      setSendMessage("Upload an Xray image before sending a report to a doctor.");
+      return;
+    }
+
+    if (!selectedDoctorId) {
+      setSendMessage("Select a doctor first.");
+      return;
+    }
+
+    setSendingReport(true);
+    setSendMessage("");
+
+    try {
+      const res = await fetch(`/api/reports/${latestReport.id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doctorId: selectedDoctorId }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send report to doctor");
+      }
+
+      setPatient((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          reports: (current.reports ?? []).map((report) =>
+            report.id === latestReport.id ? data.report : report
+          ),
+        };
+      });
+      setSendMessage(`Report sent to Dr. ${data.doctor?.name || "selected doctor"}.`);
+    } catch (err) {
+      setSendMessage(err instanceof Error ? err.message : "Failed to send report to doctor");
+    } finally {
+      setSendingReport(false);
+    }
+  }
 
   useEffect(() => {
     if (!latestDoctorReview || !latestReport?.id) return;
@@ -188,8 +258,9 @@ export default function PatientDashboard() {
             </MotionCard>
             <MotionCard>
               <StatCard
-                title="Confidence Score"
+                title="Confidence"
                 value={latestConfidence}
+                hint="Model probability as percent"
                 tone="amber"
               />
             </MotionCard>
@@ -229,74 +300,124 @@ export default function PatientDashboard() {
           </MotionCard>
 
           <MotionCard>
-            <div className="rounded-[26px] bg-gradient-to-br from-teal-50 via-white to-cyan-50 p-5 sm:p-6">
+            <div className="rounded-[26px] bg-white p-5 sm:p-6">
               <h2 className="mb-4 flex items-center gap-2 text-xl font-black text-slate-900">
                 <Stethoscope size={18} className="text-teal-700" />
-                Assigned Doctor Review
+                Send Report to Doctor
               </h2>
-              {latestDoctorReview ? (
-                <div className="space-y-3">
-                  <div className="flex flex-col gap-1 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-                    <span>
-                      Reviewed by{" "}
-                      <b className="text-slate-800">
-                        {latestReport?.doctor?.name || "Assigned doctor"}
-                      </b>
-                    </span>
-                    <span>
-                      {latestDoctorReview.createdAt
-                        ? new Date(latestDoctorReview.createdAt).toLocaleString()
-                        : "Recently reviewed"}
-                    </span>
-                  </div>
-                  <div className="rounded-[22px] border border-teal-100 bg-white p-4 text-sm leading-7 text-slate-700 shadow-sm whitespace-pre-wrap">
-                    <p className="mb-2 font-black text-slate-950">
-                      {latestDoctorReview.title || "Doctor Review"}
-                    </p>
-                    {latestDoctorReview.notes || "Your doctor has reviewed this report."}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm leading-7 text-slate-600">
-                  Your assigned doctor has not added review notes for the latest report yet.
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <select
+                  value={selectedDoctorId}
+                  onChange={(event) => setSelectedDoctorId(event.target.value)}
+                  className="soft-input w-full"
+                  disabled={!latestReport || sendingReport}
+                >
+                  <option value="">Select doctor from doctor list</option>
+                  {doctors.map((doctor) => (
+                    <option key={doctor.id} value={doctor.id}>
+                      Dr. {doctor.name}
+                      {doctor.specialization?.type ? ` - ${doctor.specialization.type}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={sendLatestReportToDoctor}
+                  disabled={!latestReport || sendingReport}
+                  className="teal-button justify-center px-4 py-3 disabled:opacity-60"
+                >
+                  {sendingReport ? "Sending..." : "Send Latest Report"}
+                </button>
+              </div>
+              <div className="mt-3 text-sm leading-6 text-slate-600">
+                {latestReport?.doctor?.name ? (
+                  <span>
+                    Latest report is currently sent to{" "}
+                    <b className="text-slate-900">Dr. {latestReport.doctor.name}</b>.
+                  </span>
+                ) : (
+                  <span>Select a doctor to send your latest generated report for review.</span>
+                )}
+              </div>
+              {sendMessage && (
+                <p className="mt-3 rounded-[18px] bg-cyan-50 p-3 text-sm font-semibold text-slate-700">
+                  {sendMessage}
                 </p>
               )}
             </div>
           </MotionCard>
 
           <MotionCard>
-            <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <FileText size={18} className="text-teal-700" />
-              Latest Uploaded Report
-            </h2>
             {latestReport ? (
-              <div className="space-y-4">
-                <img
-                  src={latestReport.imageUrl}
-                  alt="Latest uploaded Xray image"
-                  className="max-h-96 w-full rounded-[24px] border bg-white object-contain shadow-sm"
-                />
-                <div className="text-xs text-slate-500">
-                  {new Date(latestReport.date).toLocaleString()}
-                </div>
-                <div className="rounded-[24px] bg-white p-4 text-sm leading-6 text-slate-700 shadow-sm whitespace-pre-wrap">
-                  <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="font-black text-slate-950">Formatted AI Medical Report</p>
-                    <ReportDownloadButton
-                      report={latestReport}
-                      patientName={displayName(patient?.name)}
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                <section className="min-w-0 rounded-[26px] bg-white p-5 sm:p-6">
+                  <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-slate-900">
+                    <FileText size={18} className="text-teal-700" />
+                    Latest Uploaded Report
+                  </h2>
+                  <div className="space-y-4">
+                    <img
+                      src={latestReport.imageUrl}
+                      alt="Latest uploaded Xray image"
+                      className="max-h-96 w-full rounded-[24px] border bg-white object-contain shadow-sm"
                     />
+                    <div className="text-xs text-slate-500">
+                      {new Date(latestReport.date).toLocaleString()}
+                    </div>
+                    <div className="rounded-[24px] bg-white p-4 text-sm leading-6 text-slate-700 shadow-sm whitespace-pre-wrap">
+                      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="font-black text-slate-950">Formatted AI Medical Report</p>
+                        <ReportDownloadButton
+                          report={latestReport}
+                          patientName={displayName(patient?.name)}
+                        />
+                      </div>
+                      <p>
+                        <RichMedicalText
+                          text={
+                            latestReport.aiAnalysis?.findings ||
+                            latestReport.reportText ||
+                            "AI analysis is still being prepared."
+                          }
+                        />
+                      </p>
+                    </div>
                   </div>
-                  <p>
-                    <RichMedicalText
-                      text={
-                        latestReport.aiAnalysis?.findings ||
-                        latestReport.reportText ||
-                        "AI analysis is still being prepared."
-                      }
-                    />
-                  </p>
-                </div>
+                </section>
+
+                <aside className="min-w-0 rounded-[26px] bg-gradient-to-br from-teal-50 via-white to-cyan-50 p-5 sm:p-6">
+                  <h2 className="mb-4 flex items-center gap-2 text-lg font-black text-slate-900">
+                    <Stethoscope size={18} className="text-teal-700" />
+                    Doctor Review & Diagnosis
+                  </h2>
+                  {latestDoctorReview ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-1 text-sm text-slate-500">
+                        <span>
+                          Reviewed by{" "}
+                          <b className="text-slate-800">
+                            {latestReport.doctor?.name || "Assigned doctor"}
+                          </b>
+                        </span>
+                        <span>
+                          {latestDoctorReview.createdAt
+                            ? new Date(latestDoctorReview.createdAt).toLocaleString()
+                            : "Recently reviewed"}
+                        </span>
+                      </div>
+                      <div className="rounded-[22px] border border-teal-100 bg-white p-4 text-sm leading-7 text-slate-700 shadow-sm whitespace-pre-wrap">
+                        <p className="mb-2 font-black text-slate-950">
+                          {latestDoctorReview.title || "Doctor Review"}
+                        </p>
+                        {latestDoctorReview.notes || "Your doctor has reviewed this report."}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-7 text-slate-600">
+                      Your selected doctor has not added diagnosis notes for this report yet.
+                    </p>
+                  )}
+                </aside>
               </div>
             ) : (
               <p className="text-slate-500">No Xray images uploaded yet.</p>

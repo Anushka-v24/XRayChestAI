@@ -12,6 +12,8 @@ type TopLabel = {
   probability: number;
 };
 
+const PREDICTION_CONFIDENCE_THRESHOLD = 0.3;
+
 function getUploadError(error: unknown) {
   if (axios.isAxiosError(error)) {
     if (error.code === "ECONNREFUSED") {
@@ -84,12 +86,24 @@ export async function POST(req: NextRequest) {
       resource_type: "auto", // image, pdf...
     });
 
-    const disease = JSON.stringify(data.top3_labels);
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
     const topLabels = data.top3_labels as TopLabel[];
     const topConfidence = topLabels[0]?.probability ?? null;
+    const confidentLabels = topLabels.filter(
+      (label) => label.probability >= PREDICTION_CONFIDENCE_THRESHOLD
+    );
+    const hasConfidentPrediction = confidentLabels.length > 0;
+    const labelsForContext = hasConfidentPrediction ? confidentLabels : [];
+    const disease = JSON.stringify(confidentLabels);
+    console.log("Top prediction confidence:", {
+      raw: topConfidence,
+      percent:
+        typeof topConfidence === "number" ? topConfidence * 100 : topConfidence,
+      thresholdPercent: PREDICTION_CONFIDENCE_THRESHOLD * 100,
+      hasConfidentPrediction,
+    });
     const diseaseInfoResponses = await Promise.all(
-      topLabels.map(async (element) => {
+      labelsForContext.map(async (element) => {
         try {
           const res = await axios.get(
             `${baseUrl}/api/agentB?token=${patientId}&disease=${encodeURIComponent(element.label)}`
@@ -111,8 +125,15 @@ export async function POST(req: NextRequest) {
         },
         {
           role: "user",
-          content: `Here are the possible diseases ${disease} and diseaseInfoResponses ${diseaseInfoResponses}. 
-          Based on this, provide a concise analysis of the medical image including likely diagnosis, differentials, and recommended next steps for diagnosis and treatment.`,
+          content: hasConfidentPrediction
+            ? `Here are the disease labels above the ${
+                PREDICTION_CONFIDENCE_THRESHOLD * 100
+              }% confidence threshold: ${disease}. Here are supporting references: ${diseaseInfoResponses}.
+              Based on this, provide a concise analysis of the medical image including likely diagnosis, differentials, and recommended next steps for diagnosis and treatment.`
+            : `The ML model did not detect any disease label above the ${
+                PREDICTION_CONFIDENCE_THRESHOLD * 100
+              }% confidence threshold. The top raw model outputs were ${JSON.stringify(topLabels)}.
+              Do not present these low-confidence labels as a likely diagnosis. Provide a concise report saying no confident AI disease detection was found, explain that this does not rule out disease, and recommend radiologist/doctor review and clinical correlation.`,
         },
       ],
     });
