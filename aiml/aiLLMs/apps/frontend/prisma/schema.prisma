@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  authUserId String   @unique @db.Uuid
+  name       String
+  email      String   @unique
+  disease    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  reports    Report[]
+}
+
+model Doctor {
+  id               String                @id @default(uuid())
+  authUserId       String                @unique @db.Uuid
+  name             String
+  email            String                @unique
+  password         String?
+  proofOfWork      String?
+  trackRecord      String?
+  verified         Boolean               @default(false)
+  specializationId String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  specialization   DoctorSpecialization? @relation(fields: [specializationId], references: [id])
+  reports          Report[]
+}
+
+model DoctorSpecialization {
+  id          String   @id @default(uuid())
+  type        String
+  description String?
+  doctors     Doctor[]
+}
+
+model Report {
+  id         String      @id @default(uuid())
+  imageUrl   String
+  reportText String?
+  date       DateTime    @default(now())
+  confirmed  Boolean     @default(false)
+  severity   Severity?
+  userId     String
+  doctorId   String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  aiAnalysis AIAnalysis?
+  diagnosis  Diagnosis[]
+  doctor     Doctor?     @relation(fields: [doctorId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+}
+
+model Diagnosis {
+  id        String   @id @default(uuid())
+  reportId  String
+  title     String
+  notes     String?
+  createdAt DateTime @default(now())
+  report    Report   @relation(fields: [reportId], references: [id])
+}
+
+model AIAnalysis {
+  id         String   @id @default(uuid())
+  reportId   String   @unique
+  findings   String
+  confidence Float?
+  createdAt  DateTime @default(now())
+  report     Report   @relation(fields: [reportId], references: [id])
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+enum Severity {
+  MILD
+  MODERATE
+  SEVERE
+  CRITICAL
+}

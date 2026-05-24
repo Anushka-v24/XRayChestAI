@@ -1,0 +1,27 @@
+{
+  "name": "agents-def",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "packageManager": "npm@10.8.2",
+  "devDependencies": {
+    "turbo": "^2.5.8"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.0.0",
+    "@prisma/client": "^7.0.0",
+    "@prisma/extension-accelerate": "^3.0.0",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "cloudinary": "^2.8.0",
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3",
+    "prisma": "^7.0.0",
+    "swr": "^2.3.6"
+  }
+}
